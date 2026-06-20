@@ -1,0 +1,48 @@
+name: 跨平台打包
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            out_name: 账目管家-Windows.exe
+            src_name: dist/账目管家.exe
+          - os: macos-latest
+            out_name: 账目管家-Mac
+            src_name: dist/账目管家
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: 安装依赖
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: PyInstaller 打包
+        run: |
+          pyinstaller --onefile --console --name "账目管家" --hidden-import openpyxl --hidden-import pandas --hidden-import flask app.py
+
+      - name: 重命名产物
+        shell: bash
+        run: cp "${{ matrix.src_name }}" "${{ matrix.out_name }}"
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out_name }}
+          path: ${{ matrix.out_name }}
