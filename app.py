@@ -814,7 +814,11 @@ def api_customers_upload():
     file = request.files["file"]
     try:
         df = pd.read_excel(file)
-        col = df.columns[0]
+        # 匹配"店铺名"列，找不到则报错
+        store_cols = [c for c in df.columns if '店铺名' in str(c)]
+        if not store_cols:
+            return jsonify({'ok': False, 'msg': '未找到"店铺名"列，请检查Excel表头'})
+        col = store_cols[0]
         added = 0
         for raw in df[col].dropna():
             s = normalize_name(str(raw))
