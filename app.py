@@ -359,9 +359,9 @@ def render_upload():
             <input type="file" name="file" id="fileInput" accept=".xlsx,.xls" onchange="onFileSelected(this)" style="position:absolute;opacity:0;width:0;height:0">
             <span class="file-name" id="fileName">未选择文件</span>
             <span style="display:inline-flex;align-items:center;gap:4px;font-size:14px;color:#555">
-                <input type="number" name="year" placeholder="xxx" style="width:60px;padding:8px 6px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;text-align:center;outline:none" min="2020" max="2099"> <b>年</b>
-                <input type="number" name="month" placeholder="xx" style="width:45px;padding:8px 4px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;text-align:center;outline:none" min="1" max="12"> <b>月</b>
-                <input type="number" name="day" placeholder="xx" style="width:45px;padding:8px 4px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;text-align:center;outline:none" min="1" max="31"> <b>日</b>
+                <input type="number" name="year" id="yearInput" placeholder="xxxx" style="width:60px;padding:8px 6px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;text-align:center;outline:none" min="2020" max="2099"> <b>年</b>
+                <input type="number" name="month" id="monthInput" placeholder="xx" style="width:45px;padding:8px 4px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;text-align:center;outline:none" min="1" max="12"> <b>月</b>
+                <input type="number" name="day" id="dayInput" placeholder="xx" style="width:45px;padding:8px 4px;border:1px solid #d9d9d9;border-radius:6px;font-size:14px;text-align:center;outline:none" min="1" max="31"> <b>日</b>
             </span>
             <button type="submit" class="btn btn-green" id="submitBtn" disabled>&#128640; 开始处理</button>
             <button type="button" class="btn btn-blue" onclick="openCustomerModal()" style="margin-left:8px">&#128100; 客户名单（{len(CUSTOMER_SET)}）</button>
@@ -369,6 +369,17 @@ def render_upload():
         </div>
     </form>
 </div>
+<script>
+(function(){{
+    var now = new Date();
+    var y = document.getElementById('yearInput');
+    var m = document.getElementById('monthInput');
+    var d = document.getElementById('dayInput');
+    if(y && !y.value) y.value = now.getFullYear();
+    if(m && !m.value) m.value = now.getMonth() + 1;
+    if(d && !d.value) d.value = now.getDate();
+}})();
+</script>
 """
 
 EMPTY = """
@@ -712,7 +723,7 @@ def dl_export():
     os.makedirs(dir_day, exist_ok=True)
 
     # 两个文件都存到日期文件夹
-    df.to_excel(os.path.join(dir_day, f"{day_str}总发货明细表.xlsx"), index=False, sheet_name="清洗数据")
+    df.to_excel(os.path.join(dir_day, f"{day_str}总发货明细表.xlsx"), index=False, sheet_name=day_str)
     if store_col:
         for store in sorted(out['店铺名'].dropna().unique()):
             sd = out[out['店铺名'] == store].copy().reset_index(drop=True)
@@ -725,7 +736,7 @@ def dl_export():
             sd = pd.concat([sd, pd.DataFrame([srow])], ignore_index=True)
             cname = clean_store_name(store)
             fname = f"通快-{cname}（{day_str}）-个人的每日账目.xlsx"
-            sd.to_excel(os.path.join(dir_day, fname), index=False, sheet_name=cname[:31])
+            sd.to_excel(os.path.join(dir_day, fname), index=False, sheet_name=day_str)
     return jsonify({'ok': True, 'msg': f'已导出到：{dir_day}', 'dir': str(base)})
 
 
@@ -736,7 +747,13 @@ def dl_ship_export():
     if df is None or df.empty: return "暂无数据", 400
     savedir = _data_dir()
     # 文件1：全部订单
-    df.to_excel(os.path.join(savedir, "全部订单.xlsx"), index=False, sheet_name="全部订单")
+    filter_date = app.config.get("EXPORT_DATE", "")
+    if filter_date:
+        parts = filter_date.split('-')
+        sheet_date = f"{int(parts[1])}月{int(parts[2])}日"
+    else:
+        sheet_date = "全部订单"
+    df.to_excel(os.path.join(savedir, "全部订单.xlsx"), index=False, sheet_name=sheet_date)
     # 文件2：各店铺每日汇总
     buf2 = io.BytesIO()
     with pd.ExcelWriter(buf2, engine="openpyxl") as w:
@@ -749,7 +766,7 @@ def dl_ship_export():
                 订单数=('订单号','count')).reset_index()
             for c in ['机器称重','头程费','打包费','换面单费','小计']:
                 ds[c] = ds[c].round(2)
-            ds.to_excel(w, index=False, sheet_name=clean_store_name(store)[:31])
+            ds.to_excel(w, index=False, sheet_name=sheet_date)
     buf2.seek(0)
     with open(os.path.join(savedir, "各店铺每日汇总.xlsx"), 'wb') as f:
         f.write(buf2.read())
@@ -907,7 +924,7 @@ def api_row_update():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  发货明细总表  http://127.0.0.1:5000")
+    print("  发货明细总表  http://127.0.0.1:5050")
     print(f"  已加载客户: {len(CUSTOMER_SET)} 个")
     print("=" * 50)
-    app.run(debug=False, host="127.0.0.1", port=5000)
+    app.run(debug=False, host="127.0.0.1", port=5050)
